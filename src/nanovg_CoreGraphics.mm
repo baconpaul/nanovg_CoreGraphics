@@ -1,7 +1,10 @@
-#include "nanovg_cg2d.h"
+#include "nanovg_CoreGraphics.h"
 
 #include <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
+
+#include <iomanip>
+#include <iostream>
 
 struct CG2DNVGcontext {
   int flags;
