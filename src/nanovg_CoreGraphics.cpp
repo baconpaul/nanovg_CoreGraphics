@@ -1,10 +1,11 @@
 #include "nanovg_CoreGraphics.h"
 
-#include <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
 
 #include <iomanip>
 #include <iostream>
+
+extern CGContextRef getCurrentContextRef();
 
 struct CG2DNVGcontext {
   int flags;
@@ -64,21 +65,39 @@ void cg2dnvg__renderFill(void *uptr, NVGpaint *paint,
                          NVGcompositeOperationState compositeOperation,
                          NVGscissor *scissor, float fringe, const float *bounds,
                          const NVGpath *paths, int npaths) {
+  bool solidColor = true;
+  int cp = 0;
+  while (solidColor && cp < 4) {
+    solidColor = solidColor &&
+                 (paint->innerColor.rgba[cp] == paint->outerColor.rgba[cp]);
+    cp++;
+  }
 
-  std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
-            << __func__ << std::endl;
-  std::cerr << "  xformP=";
-  for (int i = 0; i < 6; ++i)
-    std::cerr << "[" << i << "]=" << std::setprecision(10) << paint->xform[i]
-              << " ";
-  std::cerr << std::endl;
+  if (!solidColor) {
+    float sx, sy, ex, ey;
+    nvgTransformPoint(&sx, &sy, paint->xform, 0, paint->extent[0]);
+    nvgTransformPoint(&ex, &ey, paint->xform, 0, paint->extent[1]);
+    std::cerr << "TRANSFORM: sx/y=" << sx << "," << sy << "  ex/y=" << ex << ","
+              << ey << std::endl;
 
-  std::cerr << "  INR=" << paint->innerColor.r << " " << paint->innerColor.g
-            << " " << paint->innerColor.b << std::endl;
-  std::cerr << "  OUT=" << paint->outerColor.r << " " << paint->outerColor.g
-            << " " << paint->outerColor.b << std::endl;
-
+    std::cerr << "  INR=" << paint->innerColor.r << " " << paint->innerColor.g
+              << " " << paint->innerColor.b << std::endl;
+    std::cerr << "  OUT=" << paint->outerColor.r << " " << paint->outerColor.g
+              << " " << paint->outerColor.b << std::endl;
+    std::cerr << "   XT=" << paint->extent[0] << "," << paint->extent[1]
+              << std::endl;
+  }
   /*
+      std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
+                << __func__ << std::endl;
+      std::cerr << "  xformP=";
+      for (int i = 0; i < 6; ++i)
+         std::cerr << "[" << i << "]=" << std::setprecision(10) <<
+    paint->xform[i]
+                   << " ";
+      std::cerr << std::endl;
+
+
     std::cerr << "  bounds=";
     for( int i=0; i<4; ++i )
     std::cerr << "[" << i << "]" << bounds[i] << " ";
@@ -86,7 +105,7 @@ void cg2dnvg__renderFill(void *uptr, NVGpaint *paint,
 
     std::cerr << "  npaths=" << npaths  << std::endl;
   */
-  CGContextRef cgCtx = [[NSGraphicsContext currentContext] CGContext];
+  CGContextRef cgCtx = getCurrentContextRef();
 
   for (int i = 0; i < npaths; ++i) {
     CGMutablePathRef pathR = CGPathCreateMutable();
@@ -113,7 +132,7 @@ void cg2dnvg__renderStroke(void *uptr, NVGpaint *paint,
                            const NVGpath *paths, int npaths) {
   // std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec <<
   // __func__ << std::endl;
-  CGContextRef cgCtx = [[NSGraphicsContext currentContext] CGContext];
+  CGContextRef cgCtx = getCurrentContextRef();
 
   for (int i = 0; i < npaths; ++i) {
     CGMutablePathRef pathR = CGPathCreateMutable();
