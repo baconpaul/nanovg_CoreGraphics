@@ -73,57 +73,83 @@ void cg2dnvg__renderFill(void *uptr, NVGpaint *paint,
     cp++;
   }
 
-  if (!solidColor) {
-    float sx, sy, ex, ey;
-    nvgTransformPoint(&sx, &sy, paint->xform, 0, paint->extent[0]);
-    nvgTransformPoint(&ex, &ey, paint->xform, 0, paint->extent[1]);
-    std::cerr << "TRANSFORM: sx/y=" << sx << "," << sy << "  ex/y=" << ex << ","
-              << ey << std::endl;
+  bool linearGradient = !solidColor && (paint->extent[0] != paint->extent[1]);
+  bool radialGradient = !solidColor && (paint->extent[0] == paint->extent[1]);
 
-    std::cerr << "  INR=" << paint->innerColor.r << " " << paint->innerColor.g
-              << " " << paint->innerColor.b << std::endl;
-    std::cerr << "  OUT=" << paint->outerColor.r << " " << paint->outerColor.g
-              << " " << paint->outerColor.b << std::endl;
-    std::cerr << "   XT=" << paint->extent[0] << "," << paint->extent[1]
-              << std::endl;
-  }
-  /*
-      std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
-                << __func__ << std::endl;
-      std::cerr << "  xformP=";
-      for (int i = 0; i < 6; ++i)
-         std::cerr << "[" << i << "]=" << std::setprecision(10) <<
-    paint->xform[i]
-                   << " ";
-      std::cerr << std::endl;
-
-
-    std::cerr << "  bounds=";
-    for( int i=0; i<4; ++i )
-    std::cerr << "[" << i << "]" << bounds[i] << " ";
-    std::cerr << std::endl;
-
-    std::cerr << "  npaths=" << npaths  << std::endl;
-  */
   CGContextRef cgCtx = getCurrentContextRef();
 
-  for (int i = 0; i < npaths; ++i) {
-    CGMutablePathRef pathR = CGPathCreateMutable();
-    CGPathMoveToPoint(pathR, NULL, paths[i].fill[0].x, paths[i].fill[0].y);
+  if (solidColor) {
+    for (int i = 0; i < npaths; ++i) {
+      CGMutablePathRef pathR = CGPathCreateMutable();
+      CGPathMoveToPoint(pathR, NULL, paths[i].fill[0].x, paths[i].fill[0].y);
 
-    for (int j = 1; j < paths[i].nfill; ++j) {
-      CGPathAddLineToPoint(pathR, NULL, paths[i].fill[j].x, paths[i].fill[j].y);
+      for (int j = 1; j < paths[i].nfill; ++j) {
+        CGPathAddLineToPoint(pathR, NULL, paths[i].fill[j].x,
+                             paths[i].fill[j].y);
+      }
+      CGPathCloseSubpath(pathR);
+      CGContextSetRGBFillColor(cgCtx, paint->innerColor.r, paint->innerColor.g,
+                               paint->innerColor.b, paint->innerColor.a);
+      CGContextAddPath(cgCtx, pathR);
+      CGContextDrawPath(cgCtx, kCGPathFill);
+      CGPathRelease(pathR);
     }
-    CGPathCloseSubpath(pathR);
-    CGContextSetRGBFillColor(cgCtx, paint->innerColor.r, paint->innerColor.g,
-                             paint->innerColor.b, paint->innerColor.a);
-    CGContextAddPath(cgCtx, pathR);
-    CGContextDrawPath(cgCtx, kCGPathFill);
-  }
+  } else if (linearGradient || radialGradient) {
+    CGFloat colors[8];
+    CGFloat locations[2];
+    locations[0] = 0.f;
+    locations[1] = 1.f;
+    for (int i = 0; i < 4; ++i) {
+      colors[i] = paint->innerColor.rgba[i];
+      colors[i + 4] = paint->outerColor.rgba[i];
+    }
 
-  // CGContextSetRGBFillColor (myContext, 1, 1, 0, 1);
-  // CGContextFillRect (myContext, CGRectMake (bounds[0], bounds[1], bounds[2],
-  // bounds[3] ) );
+    float sx, sy, ex, ey;
+    nvgTransformPoint(&sx, &sy, paint->xform, 0, paint->extent[0]);
+    nvgTransformPoint(&ex, &ey, paint->xform, 0,
+                      (paint->extent[1] - paint->extent[0]) * 2.0 +
+                          paint->extent[0]);
+    CGPoint start = CGPointMake(sx, sy);
+    CGPoint end = CGPointMake(ex, ey);
+
+    CGGradientRef grad = CGGradientCreateWithColorComponents(
+        CGColorSpaceCreateDeviceRGB(), colors, locations, 2);
+
+    for (int i = 0; i < npaths; ++i) {
+      CGMutablePathRef pathR = CGPathCreateMutable();
+      CGPathMoveToPoint(pathR, NULL, paths[i].fill[0].x, paths[i].fill[0].y);
+
+      for (int j = 1; j < paths[i].nfill; ++j) {
+        CGPathAddLineToPoint(pathR, NULL, paths[i].fill[j].x,
+                             paths[i].fill[j].y);
+      }
+      // FIXME: if closed close it
+      CGPathCloseSubpath(pathR);
+      CGContextAddPath(cgCtx, pathR);
+
+      /*CGContextSetRGBFillColor(cgCtx, paint->innerColor.r,
+         paint->innerColor.g, paint->innerColor.b, paint->innerColor.a);
+                               CGContextDrawPath(cgCtx, kCGPathFill);*/
+
+      CGContextClip(cgCtx);
+
+      if (linearGradient) {
+        CGContextDrawLinearGradient(cgCtx, grad, start, end,
+                                    kCGGradientDrawsBeforeStartLocation |
+                                        kCGGradientDrawsAfterEndLocation);
+      } else {
+        CGContextDrawRadialGradient(cgCtx, grad, start, 0, start, paint->radius,
+                                    kCGGradientDrawsBeforeStartLocation |
+                                        kCGGradientDrawsAfterEndLocation);
+      }
+
+      CGContextResetClip(cgCtx);
+      CGPathRelease(pathR);
+    }
+    CGGradientRelease(grad);
+  } else {
+    std::cerr << "WHAT THE HECK AM I!" << std::endl;
+  }
 }
 
 void cg2dnvg__renderStroke(void *uptr, NVGpaint *paint,
@@ -139,8 +165,6 @@ void cg2dnvg__renderStroke(void *uptr, NVGpaint *paint,
     CGPathMoveToPoint(pathR, NULL, paths[i].stroke[0].x, paths[i].stroke[0].y);
 
     for (int j = 1; j < paths[i].nstroke; ++j) {
-      std::cerr << i << " " << j << " " << paths[i].stroke[j].x << " "
-                << paths[i].stroke[j].y << std::endl;
       CGPathAddLineToPoint(pathR, NULL, paths[i].stroke[j].x,
                            paths[i].stroke[j].y);
     }
@@ -149,6 +173,7 @@ void cg2dnvg__renderStroke(void *uptr, NVGpaint *paint,
                                paint->innerColor.b, paint->innerColor.a);
     CGContextAddPath(cgCtx, pathR);
     CGContextDrawPath(cgCtx, kCGPathStroke);
+    CGPathRelease(pathR);
   }
 }
 
@@ -156,8 +181,9 @@ void cg2dnvg__renderTriangles(void *uptr, NVGpaint *paint,
                               NVGcompositeOperationState compositeOperation,
                               NVGscissor *scissor, const NVGvertex *verts,
                               int nverts) {
-  std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
-            << __func__ << std::endl;
+  /*  std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
+              << __func__ << std::endl;
+  */
 }
 
 void cg2dnvg__renderDelete(void *uptr) {
