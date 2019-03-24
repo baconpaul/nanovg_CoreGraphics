@@ -46,9 +46,9 @@ int cg2dnvg__renderCreateTexture(void *uptr, int type, int w, int h,
 
     CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, data, w * h * 4, NULL);
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w,
+    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
                                         cs,
-                                        kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast,
+                                        kCGBitmapByteOrder32Big,
                                         dp,
                                         NULL,
                                         true,
@@ -85,9 +85,9 @@ int cg2dnvg__renderUpdateTexture(void *uptr, int image, int x, int y, int w,
 
     CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, data, w * h * 4, NULL);
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w,
+    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
                                         cs,
-                                        kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast,
+                                        kCGBitmapByteOrder32Big,
                                         dp,
                                         NULL,
                                         true,
