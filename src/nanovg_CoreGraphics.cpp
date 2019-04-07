@@ -38,31 +38,57 @@ int cg2dnvg__renderCreateTexture(void *uptr, int type, int w, int h,
                                  int imageFlags, const unsigned char *data) {
     CGSize sz = CGSizeMake(w,h);
     CGContextRef cgCtx = getCurrentContextRef();
-   
+    CGContextSaveGState(cgCtx);
+    
     CGLayerRef layer = CGLayerCreateWithContext(cgCtx, sz, NULL );
     CG2DNVGcontext *uctx = static_cast<CG2DNVGcontext *>(uptr);
 
-    CGContextRef lCtx = CGLayerGetContext(layer);
+    if( data != NULL )
+    {
+        CGContextRef lCtx = CGLayerGetContext(layer);
+        CGContextSaveGState(lCtx);
 
-    CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, data, w * h * 4, NULL);
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
-                                        cs,
-                                        kCGBitmapByteOrder32Big,
-                                        dp,
-                                        NULL,
-                                        true,
-                                        kCGRenderingIntentDefault);
-    CGContextTranslateCTM(lCtx, 0, h);
-    CGContextScaleCTM(lCtx, 1.0, -1.0 );
-    CGContextDrawImage(lCtx, CGRectMake(0,0,w,h), imageRef);
-    CGContextFlush(lCtx);
-    
-    CGColorSpaceRelease(cs);
-    CGDataProviderRelease(dp);
-    CGImageRelease(imageRef);
-    
+        // FIXME _ as of now this is unfreed; we want to free it whtn the CGDataProcider is released in the callback
+        unsigned char* ddata = new unsigned char[w*h*4];
+        memcpy(ddata,data,w*h*4);
+
+        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, ddata, w * h * 4, NULL);
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
+                                            cs,
+                                            kCGBitmapByteOrder32Big,
+                                            dp,
+                                            NULL,
+                                            false,
+                                            kCGRenderingIntentDefault);
+        CGContextTranslateCTM(lCtx, 0, h);
+        CGContextScaleCTM(lCtx, 1.0, -1.0 );
+
+        CGContextDrawImage(lCtx, CGRectMake(0,0,w,h), imageRef);
+        
+        CGContextFlush(lCtx);
+        
+        CGColorSpaceRelease(cs);
+        CGImageRelease(imageRef);
+        CGDataProviderRelease(dp);
+                                                            
+        CGContextRestoreGState(lCtx);
+    }
+    else
+    {
+        std::cout << "No Data. Blanking canvas" << std::endl;
+        CGContextRef lCtx = CGLayerGetContext(layer);
+        CGContextSaveGState(lCtx);
+        CGContextSetRGBFillColor(lCtx,0.0,0.0,0.0,1.0);
+        CGContextFillRect(lCtx,CGRectMake(0,0,w,h));
+        CGContextFlush(lCtx);
+        CGContextRestoreGState(lCtx);
+    }
+    CGContextRestoreGState(cgCtx);
+
+    CGLayerRetain(layer);
     uctx->textures.push_back(layer);
+    
     std::cerr << "Created texture " << std::dec << w << "x" << h << " with index=" << uctx->textureIndexToImageId(uctx->textures.size() - 1)  << std::endl;
 
     return uctx->textureIndexToImageId(uctx->textures.size() - 1);
@@ -76,30 +102,42 @@ int cg2dnvg__renderDeleteTexture(void *uptr, int image) {
 
 int cg2dnvg__renderUpdateTexture(void *uptr, int image, int x, int y, int w,
                                  int h, const unsigned char *data) {
-    std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
+    std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec << image << " " << x << " " << y << " " << w << " " << h << " " << (size_t)data << " "
               << __func__ << std::endl;
     
     CG2DNVGcontext *uctx = static_cast<CG2DNVGcontext *>(uptr);
     CGLayerRef layer = uctx->textureAt(image);
 
-    CGContextRef lCtx = CGLayerGetContext(layer);
+    if( data != NULL )
+    {
+        // FIXME _ as of now this is unfreed; we want to free it whtn the CGDataProcider is released in the callback
+        unsigned char* ddata = new unsigned char[w*h*4];
+        memcpy(ddata,data,w*h*4);
 
-    CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, data, w * h * 4, NULL);
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
-                                        cs,
-                                        kCGBitmapByteOrder32Big,
-                                        dp,
-                                        NULL,
-                                        true,
-                                        kCGRenderingIntentDefault);
+        CGContextRef lCtx = CGLayerGetContext(layer);
+        CGContextSaveGState(lCtx);
+        
+        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, ddata, w * h * 4, NULL);
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGImageRef imageRef = CGImageCreate(w, h, 8, 8 * 4, w * 4,
+                                            cs,
+                                            kCGBitmapByteOrder32Big,
+                                            dp,
+                                            NULL,
+                                            false,
+                                            kCGRenderingIntentDefault);
+        
+        CGContextTranslateCTM(lCtx, 0, h);
+        CGContextScaleCTM(lCtx, 1.0, -1.0 );
 
-    CGContextDrawImage(lCtx, CGRectMake(x,y,w,h), imageRef);
-    CGContextFlush(lCtx);
-    
-    CGColorSpaceRelease(cs);
-    CGDataProviderRelease(dp);
-    CGImageRelease(imageRef);
+        CGContextDrawImage(lCtx, CGRectMake(x,y,w,h), imageRef);
+        CGContextFlush(lCtx);
+        
+        CGColorSpaceRelease(cs);
+        CGDataProviderRelease(dp);
+        CGImageRelease(imageRef);
+        CGContextRestoreGState(lCtx);
+    }
 
     return 0;
 }
