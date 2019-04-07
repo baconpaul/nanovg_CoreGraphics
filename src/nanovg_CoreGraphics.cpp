@@ -53,7 +53,8 @@ int cg2dnvg__renderCreateTexture(void *uptr, int type, int w, int h,
                                         NULL,
                                         true,
                                         kCGRenderingIntentDefault);
-
+    CGContextTranslateCTM(lCtx, 0, h);
+    CGContextScaleCTM(lCtx, 1.0, -1.0 );
     CGContextDrawImage(lCtx, CGRectMake(0,0,w,h), imageRef);
     CGContextFlush(lCtx);
     
@@ -99,8 +100,6 @@ int cg2dnvg__renderUpdateTexture(void *uptr, int image, int x, int y, int w,
     CGColorSpaceRelease(cs);
     CGDataProviderRelease(dp);
     CGImageRelease(imageRef);
-    
-    //CGContextRelease(lCtx);
 
     return 0;
 }
@@ -116,8 +115,8 @@ int cg2dnvg__renderGetTextureSize(void *uptr, int image, int *w, int *h) {
 
 void cg2dnvg__renderViewport(void *uptr, float width, float height,
                              float devicePixelRatio) {
-    std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
-              << __func__ << std::endl;
+    // FIXME!
+    // std::cerr << __func__ << " " << width << "x" << height << " @ " << devicePixelRatio << std::endl;
 }
 
 void cg2dnvg__renderCancel(void *uptr) {
@@ -126,8 +125,8 @@ void cg2dnvg__renderCancel(void *uptr) {
 }
 
 void cg2dnvg__renderFlush(void *uptr) {
-    std::cerr << "C2G:: " << std::hex << (size_t)uptr << " " << std::dec
-              << __func__ << std::endl;
+    CGContextRef cgCtx = getCurrentContextRef();
+    CGContextFlush(cgCtx);
 }
 
 void cg2dnvg__renderFill(void *uptr, NVGpaint *paint,
@@ -227,12 +226,12 @@ void cg2dnvg__renderFill(void *uptr, NVGpaint *paint,
                                             kCGGradientDrawsBeforeStartLocation |
                                             kCGGradientDrawsAfterEndLocation);
             } else {
-                std::cerr << "PAINT IMAGE " << paint->image << " " << paths[i].nfill << " ";
+                //std::cerr << "PAINT IMAGE " << paint->image << " " << paths[i].nfill << " ";
                 for( int i=0; i<4; ++i )
                 {
-                    std::cerr << "B[" << i << "]=" << bounds[ i ] << " ";
+                    //std::cerr << "B[" << i << "]=" << bounds[ i ] << " ";
                 }
-                std::cerr << std::endl;
+                //std::cerr << std::endl;
                 // CGContextDrawLayerInRect
                 CG2DNVGcontext *uctx = static_cast<CG2DNVGcontext *>(uptr);
                 CGLayerRef layer = uctx->textureAt(paint->image);
